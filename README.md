@@ -10,6 +10,9 @@ This lightweight plugin gives you full control over your website's outbound HTTP
 - Whitelist trusted domains (e.g., `googleapis.com`)
 - Blacklist specific domains regardless of whitelist
 - Disable automatic updates, XML-RPC, emojis, and Google Fonts
+- Disable GTM and Google Analytics
+- Allow Google Bots for SEO indexing
+- Block specific license checks (e.g., Envato, Elementor)
 - Add a persistent top banner in the WordPress admin area
 - Offer a fixed bottom banner in the settings page
 
@@ -17,7 +20,7 @@ This lightweight plugin gives you full control over your website's outbound HTTP
 
 - ✅ **Block external requests** with the `WP_HTTP_BLOCK_EXTERNAL` method
 - ✅ **Custom whitelist & blacklist**
-- ✅ **Toggle options**: Google domains, updates, XML-RPC, emojis, Google Fonts
+- ✅ **Toggle options**: Google domains, updates, XML-RPC, emojis, Google Fonts, GTM/Analytics, Google Bots
 - ✅ **Admin UI** to manage options
 - ✅ **Persistent admin banner** for branding or messaging
 - ✅ Fully translatable and ready for localization
@@ -44,6 +47,9 @@ This lightweight plugin gives you full control over your website's outbound HTTP
 | Disable XML-RPC       | Disable XML-RPC for improved security           |
 | Disable Emojis        | Remove extra emoji scripts from loading         |
 | Disable Google Fonts  | Remove Google Fonts (fonts.googleapis.com etc.) |
+| Disable GTM/Analytics | Remove Tag Manager and Analytics scripts        |
+| Allow Google Bots     | Whitelist Google Bots for SEO indexing          |
+| Block License Checks  | Block license checks for Envato, Elementor, etc.|
 | Custom Whitelist      | List of allowed domains (one per line)          |
 | Custom Blacklist      | List of denied domains (one per line)           |
 

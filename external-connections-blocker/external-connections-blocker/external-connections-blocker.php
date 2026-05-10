@@ -3,7 +3,7 @@
  * Plugin Name:       External Connections Blocker
  * Plugin URI:        https://adschi.com
  * Description:       Blocks external HTTP requests with customizable settings and editable domain lists for whitelist and blacklist.
- * Version:           1.4.0
+ * Version:           1.4.1
  * Author:            Mohammad Babaei
  * Author URI:        https://adschi.com
  * License:           GPL-2.0+
@@ -18,11 +18,14 @@ class ECB_Plugin {
     public function __construct() {
         $defaults = [
             'allow_google'       => 1,
+            'allow_google_bots'  => 1,
             'block_external'     => 1,
             'disable_updates'    => 1,
+            'block_license_checks' => 1,
             'disable_xmlrpc'     => 1,
             'disable_emojis'     => 1,
             'disable_google_fonts' => 1,
+            'disable_gtm_analytics' => 1,
             'custom_whitelist'   => "",
             'custom_blacklist'   => "",
         ];
@@ -50,6 +53,20 @@ class ECB_Plugin {
         if ( ! empty( $this->options['disable_google_fonts'] ) ) {
             add_filter( 'style_loader_src', [ $this, 'remove_google_fonts' ], 10, 2 );
         }
+        if ( ! empty( $this->options['disable_gtm_analytics'] ) ) {
+            add_action( 'template_redirect', [ $this, 'start_gtm_ga_removal' ] );
+        }
+    }
+
+    public function start_gtm_ga_removal() {
+        ob_start( [ $this, 'remove_gtm_ga_html' ] );
+    }
+
+    public function remove_gtm_ga_html( $html ) {
+        // Remove Google Analytics and GTM scripts from frontend
+        $html = preg_replace('/<script[^>]*src=[\'"](?:https?:)?\/\/(?:www\.)?(?:google-analytics\.com|googletagmanager\.com)[^>]*><\/script>/i', '', $html);
+        $html = preg_replace('/<script[^>]*>[\s\S]*?(?:gtag|ga\(|dataLayer|googletagmanager)[\s\S]*?<\/script>/i', '', $html);
+        return $html;
     }
 
     public function remove_google_fonts( $src, $handle ) {
@@ -80,12 +97,15 @@ class ECB_Plugin {
         );
 
         $fields = [
-            'allow_google'     => 'Allow Google Domains',
-            'block_external'   => 'Block All Other HTTP Requests',
-            'disable_updates'  => 'Disable Automatic Updates',
-            'disable_xmlrpc'   => 'Disable XML-RPC',
-            'disable_emojis'   => 'Disable Emojis',
+            'allow_google'         => 'Allow Google Domains',
+            'allow_google_bots'    => 'Allow Google Bots (SEO/Indexing)',
+            'block_external'       => 'Block All Other HTTP Requests',
+            'disable_updates'      => 'Disable Automatic Updates (and block WP servers)',
+            'block_license_checks' => 'Block License Checks (Envato, Elementor, etc.)',
+            'disable_xmlrpc'       => 'Disable XML-RPC',
+            'disable_emojis'       => 'Disable Emojis',
             'disable_google_fonts' => 'Disable Google Fonts',
+            'disable_gtm_analytics'=> 'Disable GTM & Analytics (Frontend)',
         ];
         foreach ( $fields as $field => $label ) {
             add_settings_field(
@@ -143,44 +163,89 @@ class ECB_Plugin {
         echo "<textarea id='{$name}' name='ecb_settings[{$name}]' rows='5' cols='50'>{$value}</textarea>";
     }
 
+
     public function filter_http_requests( $pre, $args, $url ) {
         if ( empty( $this->options['block_external'] ) ) {
             return null;
         }
         $host = parse_url( $url, PHP_URL_HOST );
-        if ( ! $host ) return true;
+        if ( ! $host ) return new WP_Error( 'http_request_blocked', 'Invalid URL.' );
+
+        $whitelist = [];
+        $blacklist = [];
 
         // Built-in Google whitelist
         if ( ! empty( $this->options['allow_google'] ) ) {
-            $whitelist = [
+            $google_domains = [
                 'google.com',
                 'googleapis.com',
                 'gstatic.com',
-                'googletagmanager.com',
-                'googletagservices.com',
                 'doubleclick.net',
                 'adservice.google.com',
             ];
-        } else {
-            $whitelist = [];
+            if ( empty( $this->options['disable_gtm_analytics'] ) ) {
+                $google_domains[] = 'googletagmanager.com';
+                $google_domains[] = 'googletagservices.com';
+                $google_domains[] = 'google-analytics.com';
+            }
+            $whitelist = array_merge( $whitelist, $google_domains );
         }
+
+        if ( ! empty( $this->options['allow_google_bots'] ) ) {
+            $whitelist = array_merge( $whitelist, [
+                'googlebot.com',
+                'search.google.com',
+            ] );
+        }
+
+        if ( ! empty( $this->options['disable_updates'] ) ) {
+            $blacklist = array_merge( $blacklist, [
+                'api.wordpress.org',
+                'downloads.wordpress.org',
+            ] );
+        }
+
+        if ( ! empty( $this->options['block_license_checks'] ) ) {
+            $blacklist = array_merge( $blacklist, [
+                'themeboy.com',
+                'elementor.com',
+                'themeisle.com',
+                'elegantthemes.com',
+                'yoast.com',
+                'wp-rocket.me',
+                'ithemes.com',
+                'woocommerce.com',
+                'envato.com',
+                'api.envato.com',
+            ] );
+        }
+
         // Merge with custom whitelist
         $custom_whitelist = explode("\n", $this->options['custom_whitelist']);
-        $whitelist = array_merge( $whitelist, $custom_whitelist );
+        if ( is_array($custom_whitelist) ) {
+            $whitelist = array_merge( $whitelist, array_filter( array_map( 'trim', $custom_whitelist ) ) );
+        }
+
+        // Custom blacklist has highest priority
+        $custom_blacklist = explode("\n", $this->options['custom_blacklist']);
+        if ( is_array($custom_blacklist) ) {
+            $blacklist = array_merge( $blacklist, array_filter( array_map( 'trim', $custom_blacklist ) ) );
+        }
+
+        foreach ( $blacklist as $domain ) {
+            if ( ! empty( $domain ) && stripos( $host, $domain ) !== false ) {
+                return new WP_Error( 'http_request_blocked', 'External connection blocked by ECB.' );
+            }
+        }
+
         foreach ( $whitelist as $domain ) {
-            if ( stripos( $host, $domain ) !== false ) {
+            if ( ! empty( $domain ) && stripos( $host, $domain ) !== false ) {
                 return null;
             }
         }
-        // Custom blacklist has highest priority
-        $custom_blacklist = explode("\n", $this->options['custom_blacklist']);
-        foreach ( $custom_blacklist as $domain ) {
-            if ( stripos( $host, $domain ) !== false ) {
-                return true;
-            }
-        }
+
         // Default block
-        return true;
+        return new WP_Error( 'http_request_blocked', 'External connection blocked by ECB.' );
     }
 
     public function admin_banner_global() {
