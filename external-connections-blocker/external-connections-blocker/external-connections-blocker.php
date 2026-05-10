@@ -3,7 +3,7 @@
  * Plugin Name:       External Connections Blocker
  * Plugin URI:        https://adschi.com
  * Description:       Blocks external HTTP requests with customizable settings and editable domain lists for whitelist and blacklist.
- * Version:           1.3.0
+ * Version:           1.4.0
  * Author:            Mohammad Babaei
  * Author URI:        https://adschi.com
  * License:           GPL-2.0+
@@ -22,6 +22,7 @@ class ECB_Plugin {
             'disable_updates'    => 1,
             'disable_xmlrpc'     => 1,
             'disable_emojis'     => 1,
+            'disable_google_fonts' => 1,
             'custom_whitelist'   => "",
             'custom_blacklist'   => "",
         ];
@@ -46,6 +47,16 @@ class ECB_Plugin {
             remove_action( 'wp_head', 'print_emoji_detection_script', 7 );
             remove_action( 'wp_print_styles', 'print_emoji_styles' );
         }
+        if ( ! empty( $this->options['disable_google_fonts'] ) ) {
+            add_filter( 'style_loader_src', [ $this, 'remove_google_fonts' ], 10, 2 );
+        }
+    }
+
+    public function remove_google_fonts( $src, $handle ) {
+        if ( strpos( $src, 'fonts.googleapis.com' ) !== false || strpos( $src, 'fonts.gstatic.com' ) !== false ) {
+            return false;
+        }
+        return $src;
     }
 
     public function add_settings_page() {
@@ -74,6 +85,7 @@ class ECB_Plugin {
             'disable_updates'  => 'Disable Automatic Updates',
             'disable_xmlrpc'   => 'Disable XML-RPC',
             'disable_emojis'   => 'Disable Emojis',
+            'disable_google_fonts' => 'Disable Google Fonts',
         ];
         foreach ( $fields as $field => $label ) {
             add_settings_field(
