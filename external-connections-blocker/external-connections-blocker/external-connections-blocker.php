@@ -3,7 +3,7 @@
  * Plugin Name:       External Connections Blocker
  * Plugin URI:        https://adschi.com
  * Description:       Blocks external HTTP requests with customizable settings and editable domain lists for whitelist and blacklist.
- * Version:           1.4.1
+ * Version:           1.5.0
  * Author:            Mohammad Babaei
  * Author URI:        https://adschi.com
  * License:           GPL-2.0+
@@ -26,6 +26,8 @@ class ECB_Plugin {
             'disable_emojis'     => 1,
             'disable_google_fonts' => 1,
             'disable_gtm_analytics' => 1,
+            'disable_gravatar'   => 1,
+            'disable_heartbeat'  => 1,
             'custom_whitelist'   => "",
             'custom_blacklist'   => "",
         ];
@@ -42,6 +44,12 @@ class ECB_Plugin {
             add_filter( 'site_transient_update_plugins', '__return_null' );
             add_filter( 'site_transient_update_themes', '__return_null' );
             add_filter( 'site_transient_update_core', '__return_null' );
+            add_filter( 'pre_site_transient_update_core', '__return_null' );
+            add_filter( 'pre_site_transient_update_plugins', '__return_null' );
+            add_filter( 'pre_site_transient_update_themes', '__return_null' );
+            remove_action( 'admin_init', '_maybe_update_core' );
+            remove_action( 'admin_init', '_maybe_update_plugins' );
+            remove_action( 'admin_init', '_maybe_update_themes' );
         }
         if ( $this->options['disable_xmlrpc'] ) {
             add_filter( 'xmlrpc_enabled', '__return_false' );
@@ -56,6 +64,26 @@ class ECB_Plugin {
         if ( ! empty( $this->options['disable_gtm_analytics'] ) ) {
             add_action( 'template_redirect', [ $this, 'start_gtm_ga_removal' ] );
         }
+        if ( ! empty( $this->options['disable_gravatar'] ) ) {
+            add_filter( 'get_avatar', [ $this, 'remove_gravatar' ], 10, 5 );
+            add_filter( 'default_avatar_select', [ $this, 'default_avatar' ] );
+        }
+        if ( ! empty( $this->options['disable_heartbeat'] ) ) {
+            add_action( 'init', [ $this, 'stop_heartbeat' ], 1 );
+        }
+    }
+
+    public function remove_gravatar( $avatar, $id_or_email, $size, $default, $alt ) {
+        $default = includes_url( 'images/mystery-person.png' );
+        return "<img alt='{$alt}' src='{$default}' class='avatar avatar-{$size} photo avatar-default' height='{$size}' width='{$size}' />";
+    }
+
+    public function default_avatar( $avatar_list ) {
+        return '';
+    }
+
+    public function stop_heartbeat() {
+        wp_deregister_script('heartbeat');
     }
 
     public function start_gtm_ga_removal() {
@@ -106,6 +134,8 @@ class ECB_Plugin {
             'disable_emojis'       => 'Disable Emojis',
             'disable_google_fonts' => 'Disable Google Fonts',
             'disable_gtm_analytics'=> 'Disable GTM & Analytics (Frontend)',
+            'disable_gravatar'     => 'Disable Gravatar (Use Local Default)',
+            'disable_heartbeat'    => 'Disable WP Heartbeat API',
         ];
         foreach ( $fields as $field => $label ) {
             add_settings_field(
@@ -165,9 +195,6 @@ class ECB_Plugin {
 
 
     public function filter_http_requests( $pre, $args, $url ) {
-        if ( empty( $this->options['block_external'] ) ) {
-            return null;
-        }
         $host = parse_url( $url, PHP_URL_HOST );
         if ( ! $host ) return new WP_Error( 'http_request_blocked', 'Invalid URL.' );
 
@@ -217,6 +244,17 @@ class ECB_Plugin {
                 'woocommerce.com',
                 'envato.com',
                 'api.envato.com',
+                'api.brainstormforce.com', // Astra
+                'wpbakery.com',
+                'crocoblock.com',
+                'rankmath.com',
+                'theme-fusion.com', // Avada
+                'awesomemotive.com',
+                'smashballoon.com',
+                'oceanwp.org',
+                'sliderrevolution.com',
+                'getbowtied.com',
+                'wpmudev.com',
             ] );
         }
 
@@ -244,8 +282,13 @@ class ECB_Plugin {
             }
         }
 
-        // Default block
-        return new WP_Error( 'http_request_blocked', 'External connection blocked by ECB.' );
+        if ( ! empty( $this->options['block_external'] ) ) {
+            // Default block if 'Block All Other HTTP Requests' is enabled
+            return new WP_Error( 'http_request_blocked', 'External connection blocked by ECB.' );
+        }
+
+        // Otherwise allow
+        return null;
     }
 
     public function admin_banner_global() {

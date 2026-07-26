@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2024-07-26
+### Added
+- Comprehensive blocklist for common theme and plugin license checks (e.g., Elementor, WP Rocket, Astra, Avada, etc.) to prevent timeouts on Iranian servers.
+- Option to disable Gravatar and use a local default image.
+- Option to disable the WordPress Heartbeat API to reduce server load.
+### Changed
+- Fixed a logic bug in `filter_http_requests` where custom blacklists were ignored if the "Block All Other HTTP Requests" option was unchecked.
+- Improved the "Disable Updates" feature by removing admin hooks and preventing update checks from initiating entirely, bypassing external HTTP requests more effectively.
+
 ## [1.4.1] - 2024-05-10
 ### Added
 - Added an option to remove Google Tag Manager and Analytics scripts from the frontend.
